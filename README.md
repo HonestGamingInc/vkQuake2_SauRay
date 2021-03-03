@@ -1,5 +1,5 @@
 # vkQuake2 with SauRay(TM) integration
-This is a fork of [vkQuake2](https://github.com/kondrak/vkQuake2) with [SauRay(TM)](https://www.honestgaming.io/#demonstrationPage) integration. Much thanks to [Krzysztof Kondrak](https://twitter.com/k_kondrak) for the original port.
+This is a fork of [vkQuake2](https://github.com/kondrak/vkQuake2) with [SauRay(TM)](https://www.honestgaming.io/#demonstrationPage) integration. Much thanks to [Krzysztof Kondrak](https://twitter.com/k_kondrak) for the original modernized Vulkan port.
 
 We are releasing this to be GPL-compatible (in case we release binaries) and to show the modifications required to make Quake II wall-hack free using SauRay(TM). If you would like to compile this, please reach out to us [directly](https://www.honestgaming.io/#contactPage) to get a copy of ``HighOmega.lib`` to compile against. It should be placed in ``ext/lib``.
 
