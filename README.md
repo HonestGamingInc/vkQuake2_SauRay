@@ -1,153 +1,298 @@
-<p align="center"><img src="vkQuake2.png"></p>
+# vkQuake2 with SauRay(TM) integration
+This is a fork of [vkQuake2](https://github.com/kondrak/vkQuake2) with [SauRay(TM)](https://www.honestgaming.io/#demonstrationPage) integration. Much thanks to [Krzysztof Kondrak](https://twitter.com/k_kondrak) for the original port.
 
-### Build status
-[![Build Status](https://img.shields.io/appveyor/build/kondrak/vkQuake2?logo=appveyor)](https://ci.appveyor.com/project/kondrak/vkquake2)
-[![Build Status](https://img.shields.io/travis/kondrak/vkQuake2?logo=travis)](https://travis-ci.org/kondrak/vkQuake2)
-[![Build Status](https://img.shields.io/github/workflow/status/kondrak/vkQuake2/CI?logo=github)](https://github.com/kondrak/vkQuake2/actions?query=workflow%3ACI)
+We are releasing this to be GPL-compatible (in case we release binaries) and to show the modifications required to make Quake II wall-hack free using SauRay(TM). If you would like to compile this, please reach out to us [directly](https://www.honestgaming.io/#contactPage) to get a copy of ``HighOmega.lib`` to compile against. It should be placed in ``ext/lib``.
 
-Overview
-===
-This is the official Quake 2 code v3.21 with Vulkan support and mission packs included. The goal of this project is to maintain as much compatibility as possible with the original game - just pure, vanilla Quake 2 experience as we knew it back in 1997. There are, however, a few notable differences that made the cut for various reasons:
+# Describing our Usage
+In this section we will highlight all the changes we made to the code for our integration. Please note that for this demo we didn't handle dynamic entities such as doors. This is to demonstrate API usage in its most basic sense.
 
-- world colors have been slightly upgraded - the game's original, darker look can be toggled with the `vk_postprocess` console command
-- 64-bit support, additional screen resolutions and DPI awareness have been added
-- underwater vision effect similar to software renderer has been implemented
-- antialiasing and sample shading is now natively supported
-- anisotropic filtering toggle has been added
-- players can now change texture filtering modes from within the video menu
-- mouse acceleration has been disabled
-- console contents can be scrolled with a mouse wheel
-- HUD elements, menus and console text are now scaled accordingly on higher screen resolutions (can be overridden with the `hudscale` console command)
-- viewmodel weapons are no longer hidden when FOV > 90
-- Vulkan renderer fixes broken warp texture effect (water, lava, slime) seen in OpenGL
-- software renderer has been completely replaced with [KolorSoft 1.1](https://github.com/qbism/Quake2-colored-refsoft) - this adds colored lighting and fixes severe instabilities of the original implementation
-- triangle fans have been replaced with indexed triangle lists due to Metal/MoltenVK limitations
-- on Linux, sound is now handled by ALSA instead of OSS
-- support for OGG/FLAC/MP3/WAV music has been added in addition to standard CD audio
-- music volume slider has been added (OGG/FLAC/MP3/WAV only, CD music still plays at full volume as originally intended)
-- game menus have been slightly improved
-- added Nightmare/Hard+ skill to the game menu
-- added the `aimfix` console command, backported from Berserker@Quake2
+## Header include
+The header file we needed in order integrate with Quake II was less than 40 lines with ultimately only 8 API calls necessary:
 
-A more detailed description of the thought process behind this project can be found in my [blog post](https://kondrak.github.io/posts/2020-09-20-porting-quake2-to-vulkan/), where I explain the overall design, how I attacked some of the problems and also how things developed after the initial release.
+[sauray.h](https://github.com/HonestGamingInc/vkQuake2_SauRay/blob/master/ext/include/sauray.h)
 
-Building
-===
-For extra challenge I decided to base vkQuake2 on the original id Software code. Because of this, there are no dependencies on external SDL-like libraries and the entire project is mostly self-contained. This also implies that some of the original bugs could be present.
+We include ``sauray.h`` at the top of ``server.h``. Being that our solution is server-side only this is the only place we will need to include.
 
-## Windows
-- download and install the latest [Vulkan SDK](https://vulkan.lunarg.com/)
-- install [Visual Studio Community 2019](https://www.visualstudio.com/products/free-developer-offers-vs) with C++ MFC for build tools and Windows 10 SDK
-- open `quake2.sln` and choose the target architecture (x86/x64) - it should build without any additional steps
+## Geometry caching
+In ``R_BeginRegistration ()`` in ``vk_model.c`` we have the following to cache geometry for our own usage. Though, there are alternative routes, we found this to be the quickest. Note how we avoid invisible or transparent geometry:
 
-## Linux
-Unfortunately, Linux code for Quake 2 has not aged well and for that reason only the Vulkan renderer is available for use at this time. Build steps assume that Ubuntu is the target distribution:
-- install required dependencies:
 ```
-sudo apt install make gcc g++ mesa-common-dev libglu1-mesa-dev libxxf86dga-dev libxxf86vm-dev libasound2-dev libx11-dev libxcb1-dev
+	...
+	Com_sprintf(fullname, sizeof(fullname), "./assets/maps/%s.txt", model);
+
+	FILE *fp = fopen(fullname, "wb");
+	int i = 0, j = 0;
+
+	for (i = 0; i != r_worldmodel->numsurfaces; i++)
+	{
+		if (r_worldmodel->surfaces[i].texinfo->flags & (SURF_SKY | SURF_TRANS33 | SURF_TRANS66 | SURF_WARP | SURF_NODRAW))
+			continue;
+
+		vkpoly_t* curPoly = r_worldmodel->surfaces[i].polys;
+		do
+		{
+			for (j = 0; j != curPoly->numverts - 2; j++)
+			{
+				fwrite(&curPoly->verts[0][0], sizeof(float), 1, fp);
+				fwrite(&curPoly->verts[0][1], sizeof(float), 1, fp);
+				fwrite(&curPoly->verts[0][2], sizeof(float), 1, fp);
+
+				fwrite(&curPoly->verts[j + 1][0], sizeof(float), 1, fp);
+				fwrite(&curPoly->verts[j + 1][1], sizeof(float), 1, fp);
+				fwrite(&curPoly->verts[j + 1][2], sizeof(float), 1, fp);
+
+				fwrite(&curPoly->verts[j + 2][0], sizeof(float), 1, fp);
+				fwrite(&curPoly->verts[j + 2][1], sizeof(float), 1, fp);
+				fwrite(&curPoly->verts[j + 2][2], sizeof(float), 1, fp);
+			}
+
+			curPoly = curPoly->chain;
+			if (!curPoly) break;
+		} while (true);
+	}
+	fclose(fp);
+    ...
 ```
-- Install the latest [Vulkan SDK](https://vulkan.lunarg.com/) - the easiest way is to use [LunarG Ubuntu Packages](https://vulkan.lunarg.com/sdk/home#linux) - just follow the instructions and there will be no additional steps required. If you decide for a manual installation, make sure that proper environment variables are set afterwards by adding the following section to your `.bashrc` file (replace SDK version and location with the ones corresponding to your system):
+
+## Start-up
+At the end of ``SV_SpawnServer ()`` in ``sv_init.c`` we have the following lines. This starts SauRay(TM) with a maximum of 4 players, each with a primary trace resolution of 640x640 and with a temporal history of 2 frames. Following that, it loads up the map geometry cached earlier.
+
 ```
-export VULKAN_SDK=/home/user/VulkanSDK/1.2.162.1/x86_64
-export PATH=$VULKAN_SDK/bin:$PATH
-export LD_LIBRARY_PATH=$VULKAN_SDK/lib:$LD_LIBRARY_PATH
-export VK_LAYER_PATH=$VULKAN_SDK/etc/explicit_layer.d
+	...
+	// set serverinfo variable
+	Cvar_FullSet ("mapname", sv.name, CVAR_SERVERINFO | CVAR_NOSET);
+
+	sauray_start(4, 640, 2);
+	sauray_feedmap_quake2(sv.name);
+
+	Com_Printf ("-------------------------------------\n");
+    ...
 ```
-- make sure your graphics drivers support Vulkan (run `vulkaninfo` to verify) - if not, you can get them with:
+
+## Player feeding
+We need to feed player geom and vantage points based on both current and historical data in ``SV_Frame ()`` in ``sv_main.c``. The heavy lifting of actual projection work happens inside SauRay(TM). Following that we need to kick off the visibility tests.
 ```
-sudo apt install mesa-vulkan-drivers
+	...
+	}
+    
+	int i = 0;
+	client_t* cl;
+	for (i = 0, cl = svs.clients; i < maxclients->value; i++, cl++)
+	{
+		if (cl->state != cs_spawned)
+			continue;
+
+		float lastOrig[3], curOrig[3], futOrig[3];
+		lastOrig[0] = ((float)cl->frames[cl->lastframe & UPDATE_MASK].ps.pmove.origin[0] * 0.125f) + cl->frames[cl->lastframe & UPDATE_MASK].ps.viewoffset[0];
+		lastOrig[1] = ((float)cl->frames[cl->lastframe & UPDATE_MASK].ps.pmove.origin[1] * 0.125f) + cl->frames[cl->lastframe & UPDATE_MASK].ps.viewoffset[1];
+		lastOrig[2] = ((float)cl->frames[cl->lastframe & UPDATE_MASK].ps.pmove.origin[2] * 0.125f) + cl->frames[cl->lastframe & UPDATE_MASK].ps.viewoffset[2];
+		curOrig[0] = ((float)cl->edict->client->ps.pmove.origin[0] * 0.125f) + cl->edict->client->ps.viewoffset[0];
+		curOrig[1] = ((float)cl->edict->client->ps.pmove.origin[1] * 0.125f) + cl->edict->client->ps.viewoffset[1];
+		curOrig[2] = ((float)cl->edict->client->ps.pmove.origin[2] * 0.125f) + cl->edict->client->ps.viewoffset[2];
+		futOrig[0] = curOrig[0] + (curOrig[0] - lastOrig[0]);
+		futOrig[1] = curOrig[1] + (curOrig[1] - lastOrig[1]);
+		futOrig[2] = curOrig[2] + (curOrig[2] - lastOrig[2]);
+
+		float lastAngle[3], curAngle[3], futAngle[3];
+		lastAngle[0] = cl->frames[cl->lastframe & UPDATE_MASK].ps.viewangles[0] + cl->frames[cl->lastframe & UPDATE_MASK].ps.kick_angles[0];
+		lastAngle[1] = cl->frames[cl->lastframe & UPDATE_MASK].ps.viewangles[1] + cl->frames[cl->lastframe & UPDATE_MASK].ps.kick_angles[1];
+		lastAngle[2] = cl->frames[cl->lastframe & UPDATE_MASK].ps.viewangles[2] + cl->frames[cl->lastframe & UPDATE_MASK].ps.kick_angles[2];
+		curAngle[0] = cl->edict->client->ps.viewangles[0] + cl->edict->client->ps.kick_angles[0];
+		curAngle[1] = cl->edict->client->ps.viewangles[1] + cl->edict->client->ps.kick_angles[1];
+		curAngle[2] = cl->edict->client->ps.viewangles[2] + cl->edict->client->ps.kick_angles[2];
+		futAngle[0] = curAngle[0] + (curAngle[0] - lastAngle[0]);
+		futAngle[1] = curAngle[1] + (curAngle[1] - lastAngle[1]);
+		futAngle[2] = curAngle[2] + (curAngle[2] - lastAngle[2]);
+
+		sauray_player_quake2((unsigned int)i,
+			cl->edict->absmin[0], cl->edict->absmin[1], cl->edict->absmin[2],
+			cl->edict->absmax[0], cl->edict->absmax[1], cl->edict->absmax[2],
+			curOrig[0], curOrig[1], curOrig[2],
+			futOrig[0], futOrig[1], futOrig[2],
+			curAngle[0], curAngle[1], curAngle[2],
+			futAngle[0], futAngle[1], futAngle[2],
+			cl->edict->client->ps.fov / 90.0f);
+	}
+	sauray_thread_start();
+    
+	// update ping based on the last known frame from all clients
+    ...
 ```
-- enter the `linux` directory and type `make release` or `make debug` depending on which variant you want to build - output binaries will be placed in `linux/releasex64` and `linux/debugx64` subdirectories respectively
 
-## MacOS
-- download and extract the latest [Vulkan SDK](https://vulkan.lunarg.com/)
-- install XCode 10.1 (or later) and add the `VULKAN_SDK` environment variable to Locations/Custom Paths - make it point to the downloaded SDK
-- open `macos/vkQuake2.xcworkspace` - it should build without any additional steps
-- alternatively, you can compile the game from the command line - modify your `.bash_profile` and add the following entries (replace SDK version and location with the ones corresponding to your system):
+And finally you join to fetch results.
 ```
-export VULKAN_SDK=/home/user/VulkanSDK/1.2.162.1
-export VK_ICD_FILENAMES=$VULKAN_SDK/macOS/share/vulkan/icd.d/MoltenVK_icd.json
-export VK_LAYER_PATH=$VULKAN_SDK/macOS/share/vulkan/explicit_layer.d
+	...
+	SV_RunGameFrame ();
+
+	sauray_thread_join();
+
+	// send messages back to the clients that had packets read this frame
+    ...
 ```
-- enter the `macos` directory and run `make release-xcode` or `make debug-xcode` depending on which variant you want to build - output binaries will be placed in `macos/vkQuake2` subdirectory
-- it is also possible to build the game with Command Line Developer Tools if you have them installed: enter the `macos` directory and run `make release` or `make debug` - output binaries will be placed in `macos/release` and `macos/debug` subdirectories respectively
+Obviously, thread start and join don't have to actually start and join threads as you can use synchronization primitives. Also, you might spot an off-by-one-frame error, and you'd be right. In practice, it didn't really affect the experience.
 
-This project uses the Vulkan loader bundled with the SDK, rather than directly linking against `MoltenVK.framework`. This is done so that validation layers are available for debugging. Builds have been tested using MacOS 10.14.2.
-
-## FreeBSD
-- install required Vulkan packages:
+## Player disconnects
+Don't forget to handle players that leave in ``SV_DropClient()`` in ``sv_main.c`` again.
 ```
-pkg install vulkan-tools vulkan-validation-layers
+	...
+	}
+
+	int i = 0;
+	client_t * clientCheck;
+	for (i = 0, clientCheck = svs.clients; i < maxclients->value; i++, clientCheck++)
+	{
+		if (drop == clientCheck)
+		{
+			sauray_remove_player(i);
+			break;
+		}
+	}
+
+	drop->state = cs_zombie;		// become free in a few seconds
+    ...
 ```
-- make sure your graphics drivers support Vulkan (run `vulkaninfo` to verify) - if not, you should either update them or find a package that is best suited for your hardware configuration
-- enter the `linux` directory and type `make release` or `make debug` depending on which variant you want to build - output binaries will be placed in `linux/releasex64` and `linux/debugx64` subdirectories respectively
 
-## Raspberry Pi 4
-Thanks to the effort of [Igalia](https://www.igalia.com/) and their [V3DV Driver](https://blogs.igalia.com/itoral/2020/07/23/v3dv_vulkan_driver_update/), it is possible to compile and run vkQuake2 on Raspberry Pi 4. Same build instructions as for Linux apply.
+## Packet filtering
+``void SV_BuildClientFrame()`` in ``sv_ents.c`` builds client updates to send out over the network. A lot of Quake's own PVS work happens in here. We need to do our own more accurate PVS work here using SauRay(TM):
 
-Running
-===
-## Windows
-The Visual Studio C++ Redistributable is required to run the application: [32-bit](https://aka.ms/vs/16/release/vc_redist.x86.exe) or [64-bit](https://aka.ms/vs/16/release/vc_redist.x64.exe) depending on the chosen architecture. These are provided automatically if you have Visual Studio installed.
+```
+	...
+	c_fullsend = 0;
 
-## All platforms
-The [release package](https://github.com/kondrak/vkQuake2/releases) comes only with the Quake 2 Demo content to showcase Vulkan functionality. For full experience, copy retail `.pak`, model and video files into the `baseq2` directory and run the executable. For mission packs, copy necessary data to `rogue` ("Ground Zero"), `xatrix` ("The Reckoning") and `zaero` ("Quake II: Zaero") directories respectively. You can then start the game with either `./quake2 +set game rogue`, `./quake2 +set game xatrix` or `./quake2 +set game zaero`.
+	our_client = 0;
+	for (ii = 0, clientCheck = svs.clients; ii < maxclients->value; ii++, clientCheck++)
+	{
+		if (client == clientCheck)
+		{
+			our_client = ii;
+			break;
+		}
+	}
 
-## Music
-This project uses [Miniaudio](https://github.com/dr-soft/miniaudio) for music playback if the original game CD is not available. For standard Quake 2, copy all tracks into the `baseq2/music` directory following the `trackXX.[ogg,flac,mp3,wav]` naming scheme (so track02.ogg, track03.ogg... for OGG files etc.). For "Ground Zero" and "The Reckoning", copy the tracks to `rogue/music` and `xatrix/music` directories respectively. For additional control over the playback, use the `miniaudio [on,off,play [X],loop [X],stop,pause,resume,info]` console command.
+	for (e=1 ; e<ge->num_edicts ; e++)
+	{
+		ent = EDICT_NUM(e);
 
-Console commands
-===
+		subject_client = -1;
+		for (ii = 0, clientCheck = svs.clients; ii < maxclients->value; ii++, clientCheck++)
+		{
+			if (clientCheck->edict == ent)
+			{
+				subject_client = ii;
+				break;
+			}
+		}
+		if (subject_client != -1 && sauray_can_see_quake2(our_client, subject_client) == 0) continue;
 
-The following commands are available when using the Vulkan renderer:
+		// ignore ents without visible models
+	...
+```
 
-| Command                 | Action                                                  |
-|-------------------------|:--------------------------------------------------------|
-| `vk_validation`         | Toggle validation layers:<br>`0` - disabled (default in Release)<br> `1` - only errors and warnings<br>`2` - full validation (default in Debug)<br>`3` - enables `VK_VALIDATION_FEATURE_ENABLE_BEST_PRACTICES_EXT` |
-| `vk_strings`            | Print some basic Vulkan/GPU information.                                    |
-| `vk_mem`                | Print dynamic vertex/index/uniform/triangle fan buffer memory and descriptor set usage statistics.          |
-| `vk_device`             | Specify index of the preferred Vulkan device on systems with multiple GPUs:<br>`-1` - prefer first DISCRETE_GPU (default)<br>`0..n` - use device #n (full list of devices is returned by `vk_strings` command) |
-| `vk_msaa`               | Toggle MSAA:<br>`0` - off (default)<br>`1` - MSAAx2<br>`2` - MSAAx4<br>`3` - MSAAx8<br>`4` - MSAAx16 |
-| `vk_sampleshading`      | Toggle sample shading for MSAA. (default: `1`) |
-| `vk_mode`               | Vulkan video mode (default: `11`). Setting this to `-1` uses a custom screen resolution defined by `r_customwidth` (default: `1024`) and `r_customheight` (default: `768`) console variables. |
-| `vk_flashblend`         | Toggle the blending of lights onto the environment. (default: `0`)            |
-| `vk_polyblend`          | Blend fullscreen effects: blood, powerups etc. (default: `1`)                 |
-| `vk_skymip`             | Toggle the usage of mipmap information for the sky graphics. (default: `0`)   |
-| `vk_finish`             | Inserts a `vkDeviceWaitIdle()` call on frame render start (default: `0`).<br>Don't use this, it's there just for the sake of having a `gl_finish` equivalent! |
-| `vk_point_particles`    | Toggle between using POINT_LIST and textured triangles for particle rendering. (default: `1`) |
-| `vk_particle_size`      | Rendered particle size. (default: `40`)                    |
-| `vk_particle_att_a`     | Intensity of the particle A attribute. (default: `0.01`)   |
-| `vk_particle_att_b`     | Intensity of the particle B attribute. (default: `0`)      |
-| `vk_particle_att_c`     | Intensity of the particle C attribute. (default: `0.01`)   |
-| `vk_particle_min_size`  | The minimum size of a rendered particle. (default: `2`)    |
-| `vk_particle_max_size`  | The maximum size of a rendered particle. (default: `40`)   |
-| `vk_lockpvs`            | Lock current PVS table. (default: `0`)                     |
-| `vk_clear`              | Clear the color buffer each frame. (default: `0`)          |
-| `vk_modulate`           | Texture brightness modifier. (default: `1`)                |
-| `vk_shadows`            | Draw experimental entity shadows. (default: `0`)           |
-| `vk_picmip`             | Shrink factor for the textures. (default: `0`)             |
-| `vk_round_down`         | Toggle the rounding of texture sizes. (default: `1`)       |
-| `vk_log`                | Log frame validation data to file. (default: `0`)          |
-| `vk_dynamic`            | Use dynamic lighting. (default: `1`)                       |
-| `vk_showtris`           | Display mesh triangles. (default: `0`)                     |
-| `vk_lightmap`           | Display lightmaps. (default: `0`)                          |
-| `vk_aniso`              | Toggle anisotropic filtering. (default: `1`)               |
-| `vk_vsync`              | Toggle vertical sync. (default: `0`)                       |
-| `vk_postprocess`        | Toggle additional color/gamma correction. (default: `1`)   |
-| `vk_restart`            | Recreate entire Vulkan subsystem.                          |
-| `vk_mip_nearfilter`     | Use nearest-neighbor filtering for mipmaps. (default: `0`) |
-| `vk_texturemode`        | Change current texture filtering mode:<br>`VK_NEAREST` - nearest-neighbor interpolation, no mipmaps<br>`VK_LINEAR` - linear interpolation, no mipmaps<br>`VK_MIPMAP_NEAREST` - nearest-neighbor interpolation with mipmaps<br>`VK_MIPMAP_LINEAR` - linear interpolation with mipmaps (default) |
-| `vk_lmaptexturemode`    | Same as `vk_texturemode` but applied to lightmap textures. |
-| `vk_fullscreen_exclusive` | Windows only: toggle usage of exclusive fullscreen mode (default: `1`). Note that when this option is enabled, there is no guarantee that exclusive fullscreen can be acquired on your system. |
+## Handling audio cues
+Since we handle PVS separately from PHS -- and more accurately -- we need to adapt to this situation. Especially if we don't want to modify the client (which in our case we didn't). As a result, we always send the audio position in ```SV_StartSound()``` in ```sv_send.c```.
 
-Acknowledgements
-===
-- Sascha Willems for his [Vulkan Samples](https://github.com/SaschaWillems/Vulkan)
-- Adam Sawicki for [Vulkan Memory Allocator](https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator) and tips on how to use it as efficiently as possible
-- Axel Gneiting for [vkQuake](https://github.com/Novum/vkQuake) which was a great inspiration and a rich source of knowledge
-- LunarG team and the Khronos Group for their invaluable help and resources
-- Dorian Apanel and the Intel team for technical support, inspiring email discussions and blazing-fast reaction to driver bug reports!
+```
+	...
+		flags |= SND_ATTENUATION;
 
-Known Issues
-===
-- some Intel GPUs may ignore texture filtering settings in video menu if anisotropic filtering is enabled - this is in fact not an issue but rather a result of anisotropic texture filtering being implementation-dependent
+	// the client doesn't know that bmodels have weird origins
+	// the origin can also be explicitly set
+	/*
+	   SauRay modification: make sure we always send the position and never the entity... 
+	   entity positions are not reliable any more...
+	*/
+	/*if ( (entity->svflags & SVF_NOCLIENT)
+		|| (entity->solid == SOLID_BSP) 
+		|| origin )*/
+	flags |= SND_POS;
+
+	// always send the entity number for channel overrides
+	/*
+	   SauRay modification: make sure we always send the position and never the entity...
+	   entity positions are not reliable any more...
+	*/
+	//flags |= SND_ENT;
+
+	if (timeofs)
+    ...
+```
+However, we must ensure that the audio position cannot be used to reconstruct the player position. Thus we obfuscate it:
+```
+	...
+		MSG_WriteShort (&sv.multicast, sendchan);
+
+	if (flags & SND_POS)
+	{
+		MSG_WritePos(&sv.multicast, origin);
+		// If we do have a source obfuscate it...
+		Obfuscate_Audio_Source = 1;
+		MultiCast_flags = flags;
+		MultiCast_source_ent = ent;
+		MultiCast_source_volume = volume;
+	}
+
+	// if the sound doesn't attenuate,send it to everyone
+	// (global radio chatter, voiceovers, etc)
+	if (attenuation == ATTN_NONE)
+		use_phs = false;
+
+	if (channel & CHAN_RELIABLE)
+	{
+		if (use_phs)
+			SV_Multicast(origin, MULTICAST_PHS_R);
+		else
+			SV_Multicast(origin, MULTICAST_ALL_R);
+	}
+	else
+	{
+		if (use_phs)
+			SV_Multicast(origin, MULTICAST_PHS);
+		else
+			SV_Multicast(origin, MULTICAST_ALL);
+	}
+
+	// Reset this flag irrespective of whether we obfuscated anything...
+	Obfuscate_Audio_Source = 0;
+}
+...
+```
+
+```Obfuscate_Audio_Source``` and ```MultiCast_*``` are new variables we made to specialize our usage of ```SV_Multicast()```.
+```
+...
+*/
+
+// Some specialize params for audio source obfuscation
+int Obfuscate_Audio_Source = 0;
+int MultiCast_flags;
+int MultiCast_source_ent;
+float MultiCast_source_volume;
+
+void SV_Multicast (vec3_t origin, multicast_t to)
+...
+```
+Finally we craft individual obfuscated audio sources for each recipient:
+```
+		...
+		}
+
+		if (origin && (MultiCast_flags & SND_POS) && Obfuscate_Audio_Source)
+		{
+			sauray_randomize_audio_source(j,
+				client->edict->s.origin[0], client->edict->s.origin[1], client->edict->s.origin[2],
+				origin[0], origin[1], origin[2],
+				origin, &origin[1], &origin[2],
+				10.0f, 50.0f);
+
+			sv.multicast.cursize -= 6; // We know we have position already...
+			MSG_WritePos(&sv.multicast, origin); // Re-write new position...
+		}
+
+		if (reliable)
+		...
+```
+
+# And that's it!
+Thanks for reading. Again, if you have any questions, don't hesitate to [reach out](https://www.honestgaming.io/#contactPage).
+
+If you'd like to keep your eyes peeled for updates, follow us on [Twitter](https://twitter.com/HonestGamingInc/).
