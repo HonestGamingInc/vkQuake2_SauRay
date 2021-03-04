@@ -296,3 +296,6 @@ Finally we craft individual obfuscated audio sources for each recipient:
 Thanks for reading. Again, if you have any questions, don't hesitate to [reach out](https://www.honestgaming.io/#contactPage).
 
 If you'd like to keep your eyes peeled for updates, follow us on [Twitter](https://twitter.com/HonestGamingInc/).
+
+# Additional thanks
+Help from [Paril](https://github.com/Paril) from [QuakeLegacy](https://quakelegacy.com/) was instrumental in getting this demo out in record time.
