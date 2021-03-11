@@ -162,8 +162,6 @@ MULTICAST_PHS	send to clients potentially hearable from org
 // Some specialize params for audio source obfuscation
 int Obfuscate_Audio_Source = 0;
 int MultiCast_flags;
-int MultiCast_source_ent;
-float MultiCast_source_volume;
 
 void SV_Multicast (vec3_t origin, multicast_t to)
 {
@@ -385,8 +383,6 @@ void SV_StartSound (vec3_t origin, edict_t *entity, int channel,
 		// If we do have a source obfuscate it...
 		Obfuscate_Audio_Source = 1;
 		MultiCast_flags = flags;
-		MultiCast_source_ent = ent;
-		MultiCast_source_volume = volume;
 	}
 
 	// if the sound doesn't attenuate,send it to everyone
