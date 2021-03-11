@@ -255,7 +255,7 @@ However, we must ensure that the audio position cannot be used to reconstruct th
 ...
 ```
 
-```Obfuscate_Audio_Source``` and ```MultiCast_*``` are new variables we made to specialize our usage of ```SV_Multicast()```.
+```Obfuscate_Audio_Source``` and ```MultiCast_flags``` are new variables we made to specialize our usage of ```SV_Multicast()```.
 ```
 ...
 */
