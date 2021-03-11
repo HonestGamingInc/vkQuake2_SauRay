@@ -153,7 +153,7 @@ Don't forget to handle players that leave in ``SV_DropClient()`` in ``sv_main.c`
 ```
 
 ## Packet filtering
-``void SV_BuildClientFrame()`` in ``sv_ents.c`` builds client updates to send out over the network. A lot of Quake's own PVS work happens in here. We need to do our own more accurate PVS work here using SauRay(TM):
+``SV_BuildClientFrame()`` in ``sv_ents.c`` builds client updates to send out over the network. A lot of Quake's own PVS work happens in here. We need to do our own more accurate PVS work here using SauRay(TM):
 
 ```
 	...
@@ -227,8 +227,6 @@ However, we must ensure that the audio position cannot be used to reconstruct th
 		// If we do have a source obfuscate it...
 		Obfuscate_Audio_Source = 1;
 		MultiCast_flags = flags;
-		MultiCast_source_ent = ent;
-		MultiCast_source_volume = volume;
 	}
 
 	// if the sound doesn't attenuate,send it to everyone
@@ -265,8 +263,6 @@ However, we must ensure that the audio position cannot be used to reconstruct th
 // Some specialize params for audio source obfuscation
 int Obfuscate_Audio_Source = 0;
 int MultiCast_flags;
-int MultiCast_source_ent;
-float MultiCast_source_volume;
 
 void SV_Multicast (vec3_t origin, multicast_t to)
 ...
