@@ -808,16 +808,13 @@ void SV_Frame (int msec)
 		if (cl->state != cs_spawned)
 			continue;
 
-		float lastOrig[3], curOrig[3], futOrig[3];
-		lastOrig[0] = ((float)cl->frames[cl->lastframe & UPDATE_MASK].ps.pmove.origin[0] * 0.125f) + cl->frames[cl->lastframe & UPDATE_MASK].ps.viewoffset[0];
-		lastOrig[1] = ((float)cl->frames[cl->lastframe & UPDATE_MASK].ps.pmove.origin[1] * 0.125f) + cl->frames[cl->lastframe & UPDATE_MASK].ps.viewoffset[1];
-		lastOrig[2] = ((float)cl->frames[cl->lastframe & UPDATE_MASK].ps.pmove.origin[2] * 0.125f) + cl->frames[cl->lastframe & UPDATE_MASK].ps.viewoffset[2];
+		float curOrig[3], futOrig[3];
 		curOrig[0] = ((float)cl->edict->client->ps.pmove.origin[0] * 0.125f) + cl->edict->client->ps.viewoffset[0];
 		curOrig[1] = ((float)cl->edict->client->ps.pmove.origin[1] * 0.125f) + cl->edict->client->ps.viewoffset[1];
 		curOrig[2] = ((float)cl->edict->client->ps.pmove.origin[2] * 0.125f) + cl->edict->client->ps.viewoffset[2];
-		futOrig[0] = curOrig[0] + (curOrig[0] - lastOrig[0]);
-		futOrig[1] = curOrig[1] + (curOrig[1] - lastOrig[1]);
-		futOrig[2] = curOrig[2] + (curOrig[2] - lastOrig[2]);
+		futOrig[0] = curOrig[0] + (cl->edict->client->ps.pmove.velocity[0] * 0.0125f); // 0.1f == FRAMETIME, 0.1 * 0.125 == 0.0125f
+		futOrig[1] = curOrig[1] + (cl->edict->client->ps.pmove.velocity[1] * 0.0125f);
+		futOrig[2] = curOrig[2] + (cl->edict->client->ps.pmove.velocity[2] * 0.0125f);
 
 		float lastAngle[3], curAngle[3], futAngle[3];
 		lastAngle[0] = cl->frames[cl->lastframe & UPDATE_MASK].ps.viewangles[0] + cl->frames[cl->lastframe & UPDATE_MASK].ps.kick_angles[0];
