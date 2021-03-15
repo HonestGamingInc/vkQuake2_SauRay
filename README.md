@@ -82,13 +82,26 @@ We need to feed player geom and vantage points based on both current and histori
 		if (cl->state != cs_spawned)
 			continue;
 
-		float curOrig[3], futOrig[3];
+		float lastOrig[3], curOrig[3], futOrig[3], curVelocity[3], lastVelocity[3];
+		lastOrig[0] = (cl->frames[cl->lastframe & UPDATE_MASK].ps.pmove.origin[0] * 0.125f) + cl->frames[cl->lastframe & UPDATE_MASK].ps.viewoffset[0];
+		lastOrig[1] = (cl->frames[cl->lastframe & UPDATE_MASK].ps.pmove.origin[1] * 0.125f) + cl->frames[cl->lastframe & UPDATE_MASK].ps.viewoffset[1];
+		lastOrig[2] = (cl->frames[cl->lastframe & UPDATE_MASK].ps.pmove.origin[2] * 0.125f) + cl->frames[cl->lastframe & UPDATE_MASK].ps.viewoffset[2];
 		curOrig[0] = ((float)cl->edict->client->ps.pmove.origin[0] * 0.125f) + cl->edict->client->ps.viewoffset[0];
 		curOrig[1] = ((float)cl->edict->client->ps.pmove.origin[1] * 0.125f) + cl->edict->client->ps.viewoffset[1];
 		curOrig[2] = ((float)cl->edict->client->ps.pmove.origin[2] * 0.125f) + cl->edict->client->ps.viewoffset[2];
-		futOrig[0] = curOrig[0] + (cl->edict->client->ps.pmove.velocity[0] * 0.0125f); // 0.1f == FRAMETIME, 0.1 * 0.125 == 0.0125f
-		futOrig[1] = curOrig[1] + (cl->edict->client->ps.pmove.velocity[1] * 0.0125f);
-		futOrig[2] = curOrig[2] + (cl->edict->client->ps.pmove.velocity[2] * 0.0125f);
+		curVelocity[0] = cl->edict->client->ps.pmove.velocity[0] * 0.0125f; // 0.1f == FRAMETIME, 0.1 * 0.125 == 0.0125f
+		curVelocity[1] = cl->edict->client->ps.pmove.velocity[1] * 0.0125f;
+		curVelocity[2] = cl->edict->client->ps.pmove.velocity[2] * 0.0125f;
+		lastVelocity[0] = curOrig[0] - lastOrig[0];
+		lastVelocity[1] = curOrig[1] - lastOrig[1];
+		lastVelocity[2] = curOrig[2] - lastOrig[2];
+		float curSpeedSq = (curVelocity[0] * curVelocity[0]) + (curVelocity[1] * curVelocity[1]) + (curVelocity[2] * curVelocity[2]);
+		float lastSpeedSq = (lastVelocity[0] * lastVelocity[0]) + (lastVelocity[1] * lastVelocity[1]) + (lastVelocity[2] * lastVelocity[2]);
+		float scaleSpeed = 1.0f;
+		if (curSpeedSq > 0.0 && lastSpeedSq > curSpeedSq) scaleSpeed = sqrtf(lastSpeedSq) / sqrtf(curSpeedSq);
+		futOrig[0] = curOrig[0] + scaleSpeed * curVelocity[0];
+		futOrig[1] = curOrig[1] + scaleSpeed * curVelocity[1];
+		futOrig[2] = curOrig[2] + scaleSpeed * curVelocity[2];
 
 		float lastAngle[3], curAngle[3], futAngle[3];
 		lastAngle[0] = cl->frames[cl->lastframe & UPDATE_MASK].ps.viewangles[0] + cl->frames[cl->lastframe & UPDATE_MASK].ps.kick_angles[0];
