@@ -19,7 +19,7 @@ extern "C" {
 		float e2x, float e2y, float e2z,
 		int qa1_yaw, int qa1_pitch, int qa1_roll,
 		int qa2_yaw, int qa2_pitch, int qa2_roll,
-		float whr);
+		float yfov, float whr);
 	int sauray_can_see_quake2(unsigned int viewer, unsigned int subject);
 	void sauray_randomize_audio_source(unsigned int listenerId,
 		float listenerX, float listenerY, float listenerZ,

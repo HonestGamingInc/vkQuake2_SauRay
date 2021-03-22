@@ -824,7 +824,7 @@ void SV_Frame (int msec)
 		float curSpeedSq = (curVelocity[0] * curVelocity[0]) + (curVelocity[1] * curVelocity[1]) + (curVelocity[2] * curVelocity[2]);
 		float lastSpeedSq = (lastVelocity[0] * lastVelocity[0]) + (lastVelocity[1] * lastVelocity[1]) + (lastVelocity[2] * lastVelocity[2]);
 		float scaleSpeed = 1.0f;
-		if (curSpeedSq > 0.0 && lastSpeedSq > curSpeedSq) scaleSpeed = sqrtf(lastSpeedSq) / sqrtf(curSpeedSq);
+		if (curSpeedSq > 0.0 && lastSpeedSq > curSpeedSq) scaleSpeed = sqrtf(lastSpeedSq / curSpeedSq);
 		futOrig[0] = curOrig[0] + scaleSpeed * curVelocity[0];
 		futOrig[1] = curOrig[1] + scaleSpeed * curVelocity[1];
 		futOrig[2] = curOrig[2] + scaleSpeed * curVelocity[2];
@@ -847,7 +847,7 @@ void SV_Frame (int msec)
 			futOrig[0], futOrig[1], futOrig[2],
 			curAngle[0], curAngle[1], curAngle[2],
 			futAngle[0], futAngle[1], futAngle[2],
-			cl->edict->client->ps.fov / 90.0f);
+			cl->edict->client->ps.fov, 1.77777778f);
 	}
 	sauray_thread_start();
 
