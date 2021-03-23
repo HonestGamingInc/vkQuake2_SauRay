@@ -25,7 +25,7 @@ extern "C" {
 		float listenerX, float listenerY, float listenerZ,
 		float originX, float originY, float originZ,
 		float* retOriginX, float* retOriginY, float* retOriginZ,
-		float distThreshold, float maxDist);
+		float randDistance, float updateDistanceThreshold);
 	void sauray_remove_player(unsigned int player);
 	int sauray_loop();         // Non-threaded mode..
 	int sauray_thread_start(); // Threaded mode...

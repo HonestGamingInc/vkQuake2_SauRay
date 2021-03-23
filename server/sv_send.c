@@ -244,7 +244,7 @@ void SV_Multicast (vec3_t origin, multicast_t to)
 				client->edict->s.origin[0], client->edict->s.origin[1], client->edict->s.origin[2],
 				origin[0], origin[1], origin[2],
 				origin, &origin[1], &origin[2],
-				10.0f, 50.0f);
+				40.0f, 60.0f);
 
 			sv.multicast.cursize -= 6; // We know we have position already...
 			MSG_WritePos(&sv.multicast, origin); // Re-write new position...
